@@ -1,0 +1,53 @@
+clear; clc; close all;
+load local_sym_sim_result01.mat;
+
+num_h_grid = 1000;
+hgrid = linspace(0.01, 2, num_h_grid)';
+r = 1;
+Q_design1 = zeros(num_h_grid, numsim);
+Q_design2 = zeros(num_h_grid, numsim);
+Q_design3 = zeros(num_h_grid, numsim);
+parfor simiter = 1:numsim
+    disp(simiter);
+    data1 = dta1{simiter};
+    y1 = data1(:,1); u1 = data1(:,2); x1 = data1(:,3:end);
+    data2 = dta2{simiter};
+    y2 = data2(:,1); u2 = data2(:,2); x2 = data2(:,3:end);
+    data3 = dta3{simiter};
+    y3 = data3(:,1); u3 = data3(:,2); x3 = data3(:,3:end);
+    
+    Q1 = @(h)( sum( mean(  (x1.*(u1.^r).*(abs(u1) < min([ h*ones(size(y1)), x1*beta0],[],2)) )  ,1).^2) );
+    Q2 = @(h)( sum( mean(  (x2.*(u2.^r).*(abs(u2) < min([ h*ones(size(y2)), x2*beta0],[],2)) )  ,1).^2) );
+    Q3 = @(h)( sum( mean(  (x3.*(u3.^r).*(abs(u3) < min([ h*ones(size(y3)), x3*beta0],[],2)) )  ,1).^2) );
+    
+    for iter = 1:num_h_grid
+        Q_design1(iter,simiter) = Q1(hgrid(iter));
+        Q_design2(iter,simiter) = Q2(hgrid(iter));
+        Q_design3(iter,simiter) = Q3(hgrid(iter));
+    end
+end
+
+% save local_sym_sim_plot_Q01.mat;
+% return
+%%
+% clear; clc; close all;
+% load local_sym_sim_plot_Q01.mat;
+avg_Q_design1 = mean(Q_design1, 2);
+avg_Q_design2 = mean(Q_design2, 2);
+avg_Q_design3 = mean(Q_design3, 2);
+
+figure(1)
+plot(hgrid, avg_Q_design1, '-b', 'linewidth',3); hold on
+plot(hgrid, avg_Q_design2, '-r', 'linewidth',3);
+plot(hgrid, avg_Q_design3, '-k', 'linewidth',3);
+% plot(hgrid, zeros(size(hgrid)), ':k', 'linewidth',2);
+plot(hs*ones(size(hgrid)), linspace(-0.05, 2, max(size(hgrid)) )', ':k', 'linewidth',2);
+xlim([0.3, 0.8])
+% ylim([-0.01, 0.001])
+ylim([-0.0001, 0.0001])
+
+xlabel("h", 'fontsize', 20);
+ylabel("Q(\beta_0, h)", 'fontsize', 25);
+box on; grid on;
+legend("Design1", "Design2", "Design3", 'fontsize', 20);
+
