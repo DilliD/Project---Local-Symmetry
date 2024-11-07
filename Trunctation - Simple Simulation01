@@ -1,0 +1,243 @@
+clear; clc; close all;
+
+numsim = 1000;
+ns = 10000;
+num_t_grid = 50000;
+mincv = 0.1;
+maxcv = 1;
+numcv = 40;
+beta0 = [-1; 1; 1];
+options.Maxiter = 100000;
+r = 1;
+
+p = 0.8;
+hs = 0.5;
+a = -5;
+
+for simiter = 1:numsim
+    clc; disp(simiter)
+    
+    xs = [ones(ns,1), (rand(ns,1) > 0.4), 3*rand(ns,1)]; k = size(xs,2);
+    xb = xs*beta0;
+
+    % Design 1 : u ~ N(0,1)
+    us1 = randn(ns,1);
+    ys1 = xb + us1;
+    data1 = [ys1, us1, xs]; data1(ys1<0,:) = []; dta1{simiter} = data1;  
+    y1 = data1(:,1); x1 = data1(:,3:end); n1(simiter,:) = size(y1,1);
+
+    % Design 2
+    result_asym_unbdd = rand_asym2(ns, p, hs);
+    us2 = result_asym_unbdd.u;
+    ys2 = xb + us2;    
+    data2 = [ys2, us2, xs]; data2(ys2<0,:) = []; dta2{simiter} = data2; 
+    y2 = data2(:,1); x2 = data2(:,3:end); n2(simiter,:) = size(y2,1);
+
+    % Design 3
+    result_asym_bdd = rand_asym1(ns, p, hs, a);
+    us3 = result_asym_bdd.u;
+    ys3 = xb + us3;
+    data3 = [ys3, us3, xs]; data3(ys3<0,:) = []; dta3{simiter} = data3;
+    y3 = data3(:,1); x3 = data3(:,3:end); n3(simiter,:) = size(y3,1);
+
+    % Qn_powell = @(para, y, x)( mean( ( y - max([0.5*y, x*para],[],2) ).^2,1 ) );
+    Qn_powell = @(para, y, x)( sum(mean(  (x.*((y-x*para(1:k,:)).^r).*(abs(y - x*para(1:k,:)) < x*para(1:k,:) ) )  ,1).^2) );
+    Qn_yang = @(para, y, x)( sum(mean(  (x.*((y-x*para(1:k,:)).^r).*(abs(y - x*para(1:k,:)) < min([ para(k+1,:)*ones(size(y)), x*para(1:k,:)],[],2)) )  ,1).^2) );
+    
+    Qn_powell1 = @(para)( Qn_powell(para, y1, x1) );
+    Qn_powell2 = @(para)( Qn_powell(para, y2, x2) );
+    Qn_powell3 = @(para)( Qn_powell(para, y3, x3) );
+
+    bhat_powell1(:,simiter) = fminsearch(Qn_powell1, beta0 + 0.2*rand(k,1), options);
+    bhat_powell2(:,simiter) = fminsearch(Qn_powell2, beta0 + 0.2*rand(k,1), options);
+    bhat_powell3(:,simiter) = fminsearch(Qn_powell3, beta0 + 0.2*rand(k,1), options);
+
+    get_local_num_obs = @(para, y, x)( sum( ( abs(y - x*para(1:k,:)) < min([ para(k+1,:)*ones(size(y)), x*para(1:k,:)],[],2)) ) );
+    Qn_yang1 = @(para)( Qn_yang(para, y1, x1) );
+    Qn_yang2 = @(para)( Qn_yang(para, y2, x2) );
+    Qn_yang3 = @(para)( Qn_yang(para, y3, x3) );
+
+    result1 = get_opt_cv(Qn_yang1, beta0, mincv, maxcv, numcv);
+    bhat_yang1(:,simiter) = result1.best;
+    convg1(simiter,:) = result1.convg;
+    n_local1(simiter,:) = get_local_num_obs(bhat_yang1(:,simiter), y1, x1);
+
+    result2 = get_opt_cv(Qn_yang2, beta0, mincv, maxcv, numcv);
+    bhat_yang2(:,simiter) = result2.best;
+    convg2(simiter,:) = result2.convg;
+    n_local2(simiter,:) = get_local_num_obs(bhat_yang2(:,simiter), y2, x2);
+
+    result3 = get_opt_cv(Qn_yang3, beta0, mincv, maxcv, numcv);
+    bhat_yang3(:,simiter) = result3.best;
+    convg3(simiter,:) = result3.convg;
+    n_local3(simiter,:) = get_local_num_obs(bhat_yang3(:,simiter), y3, x3);
+
+end
+
+% save local_sym_sim_result03.mat;
+
+%%
+clear; clc; close all; load local_sym_sim_result01.mat;
+bhat_powell1(:,convg1~=1) = [];
+bhat_yang1(:,convg1~=1) = [];
+
+bhat_powell2(:,convg2~=1) = [];
+bhat_yang2(:,convg2~=1) = [];
+
+bhat_powell3(:,convg3~=1) = [];
+bhat_yang3(:,convg3~=1) = [];
+
+clc;
+disp("Design 1 : u ~ st(2)")
+disp("Parameter // True // Powell // Yang - min_after_cv // Yang - CV")
+disp( ["1        :   "; repmat("x",[k-1,1])+num2str((1:1:k-1)') + "      :   "; "h0      :   "] + num2str( [[beta0;hs], [round(mean(bhat_powell1,2),3);nan], round(mean(bhat_yang1,2),3)]) ) 
+disp("Average Sample Size(after truncation)")
+disp(num2str( mean(n1) ))
+disp("Average Local Sample Size( |u|<h )")
+disp(num2str( mean(n_local1) ))
+disp("Total # of Simulation")
+disp(num2str( sum(convg1') ))
+
+disp("Design 2 : u ~ F1, Locally Symmetric, Unbounded Support")
+disp("Parameter // True // Powell // Yang - min_after_cv // Yang - CV")
+disp( ["1        :   "; repmat("x",[k-1,1])+num2str((1:1:k-1)') + "      :   "; "h0      :   "] + num2str( [[beta0;hs], [round(mean(bhat_powell2,2),3);nan], round(mean(bhat_yang2,2),3)]) ) 
+disp("Average Sample Size(after truncation)")
+disp(num2str( mean(n2) ))
+disp("Average Local Sample Size( |u|<h )")
+disp(num2str( mean(n_local2) ))
+disp("Total # of Simulation")
+disp(num2str( sum(convg2') ))
+
+disp("Design 3 : u ~ F2, Locally Symmetric, Bounded Support")
+disp("Parameter // True // Powell // Yang - min_after_cv // Yang - CV")
+disp( ["1        :   "; repmat("x",[k-1,1])+num2str((1:1:k-1)') + "      :   "; "h0      :   "] + num2str( [[beta0;hs], [round(mean(bhat_powell3,2),3);nan], round(mean(bhat_yang3,2),3)]) ) 
+disp("Average Sample Size(after truncation)")
+disp(num2str( mean(n3) ))
+disp("Average Local Sample Size( |u|<h )")
+disp(num2str( mean(n_local3) ))
+disp("Total # of Simulation")
+disp(num2str( sum(convg3') ))
+
+figure(1);
+for iter=1:k
+    subplot(k,1,iter)
+    histogram(bhat_powell1(iter,:)' - beta0(iter,1), 'BinWidth', 0.005, 'Normalization', 'probability'); hold on
+    histogram(bhat_yang1(iter,:)' - beta0(iter,1), 'BinWidth', 0.005, 'Normalization', 'probability');
+    plot(zeros(100,1), linspace(0,0.07,100)','-r','linewidth',2); hold off
+    xlabel("{b}^{(s)}_{n," + num2str(iter-1)+"} - \beta_{0,"+num2str(iter-1)+"}", 'fontsize', 15)
+    xlim([-0.3 0.3])
+    ylim([0 0.07])
+    grid on; box on;
+end
+legend("Powell", "Yang",'fontsize',15)
+
+figure(2);
+for iter=1:k
+    subplot(k,1,iter)
+    histogram(bhat_powell2(iter,:)' - beta0(iter,1), 'BinWidth', 0.005, 'Normalization', 'probability'); hold on
+    histogram(bhat_yang2(iter,:)' - beta0(iter,1), 'BinWidth', 0.005, 'Normalization', 'probability');
+    plot(zeros(100,1), linspace(0,0.07,100)','-r','linewidth',2); hold off
+    xlabel("{b}^{(s)}_{n," + num2str(iter-1)+"} - \beta_{0,"+num2str(iter-1)+"}", 'fontsize', 15)
+    % xlim([-1 1])
+    ylim([0 0.07])
+    grid on; box on;
+end
+legend("Powell", "Yang",'fontsize',15)
+
+figure(3);
+for iter=1:k
+    subplot(k,1,iter)
+    histogram(bhat_powell3(iter,:)' - beta0(iter,1), 'BinWidth', 0.005, 'Normalization', 'probability'); hold on
+    histogram(bhat_yang3(iter,:)' - beta0(iter,1), 'BinWidth', 0.005, 'Normalization', 'probability');
+    plot(zeros(100,1), linspace(0,0.07,100)','-r','linewidth',2); hold off
+    xlabel("{b}^{(s)}_{n," + num2str(iter-1)+"} - \beta_{0,"+num2str(iter-1)+"}", 'fontsize', 15)
+    % xlim([-1 1])
+    ylim([0 0.07])
+    grid on; box on;
+end
+legend("Powell", "Yang",'fontsize',15)
+
+%%
+function result = get_opt_cv(Qn, b0, minh, maxh, numcv, threshold)
+    if nargin == 2; minh = 0.01; maxh = 1; numcv = 100; threshold = 10^(-6);
+    elseif nargin == 3; maxh = 1; numcv = 100; threshold = 10^(-6);
+    elseif nargin == 4; numcv = 100; threshold = 10^(-6);
+    elseif nargin == 5; threshold = 10^(-6);
+    end
+    options.MaxIter = 100000;
+    threshold = 10^(-6);
+    h = linspace(minh, maxh, numcv)';
+    for iter=1:numcv
+        obj = @(para)( Qn([para; h(iter,:)]) );
+        if iter==1
+            [est(:,iter), fval(iter,:), convg(iter,:)] = fminsearch(obj, b0, options);
+        elseif iter>1
+            [est(:,iter), fval(iter,:), convg(iter,:)] = fminsearch(obj, est(:,1), options);
+        end
+    end
+    fval(convg~=1,:) = []; est(convg~=1,:) = []; h(convg~=1,:)=[];
+    idx = fval < threshold;
+    where = min(find(idx==0));
+    if min(size(where))==0
+        result.best_cv = zeros(size(b0,1)+1,1);
+        result.best = zeros(size(b0,1)+1,1);
+        result.convg = 0;
+    else
+        result.best_cv =  [est(:,where); h(where,:)];
+        result.best = fminsearch(Qn, result.best_cv, options);
+        result.convg = 1;
+    end
+
+end
+
+function result = rand_asym1(n, p, h, a)
+% Piece-wise Linear pdf, support = [a, b]
+c = 2*p/abs(a);
+pdf1 = @(t)( c*(a - t)/a );
+pdf2 = @(t)( c*(a + t)/a );
+b = h + (2*a/(c*(h+a)))*(1 - p - 0.5*h*(pdf1(0) + pdf2(h)));
+pdf3 = @(t)( ( (c*(h + a))/(a*(h - b)) )*(t-b) );
+pdf = @(t)( pdf3(t).*(t<=b).*(t>=h) + pdf2(t).*(t<h).*(t>0) + pdf1(t).*(t<=0).*(t>=a)  );
+
+cdf1 = @(t)( p + c*t - 0.5*(c/a)*t.^2 );
+cdf2 = @(t)( p + c*t + 0.5*(c/a)*t.^2 );
+cdf3 = @(t)( 1 + 0.5*pdf3(t).*(t-b)  );
+cdf = @(t)( 1.*(t>=b) + cdf3(t).*(t<b).*(t>=h) + cdf2(t).*(t<h).*(t>0) + cdf1(t).*(t<=0).*(t>=a)  );
+
+invcdf1 = @(u)( a + sqrt( (a/c)*(a*c + 2*(p - u)) ) );
+invcdf2 = @(u)( -a - sqrt( (a/c)*(a*c + 2*(u - p)) ) );
+invcdf3 = @(u)( b - sqrt( (2*a*(h - b)/(c*(h + a)))*( u -1)  )  );
+invcdf = @(u)( a*(u == 0) + b*(u == 1) + invcdf1(u).*(u>0).*(u<p) + invcdf2(u).*(u>=p).*(u < cdf2(h)) + invcdf3(u).*(u<1).*(u >= cdf3(h)) );
+
+result.pdf = pdf;
+result.cdf = cdf;
+result.invcdf = invcdf;
+result.u = invcdf(rand(n,1));
+end
+
+function result = rand_asym2(n,p,h)
+a = h + 2 - 4*p;
+b = 0.25/(1-p);
+c = 0.25*exp(0.25*h/(1-p));
+
+pdf1 = @(t)( exp( a  - t )./(( 1 + exp( a  - t ) ).^2) ); % Logistic
+pdf2 = @(t)( 1/4 ); % Uniform
+pdf3 = @(t)( 0.25*exp( 0.25*(h - t)/(1-p) ) ); % Exponential
+pdf = @(t)( pdf1(t).*(t<a) + pdf2(t).*(t>=a).*(t<h) + pdf3(t).*(t>=h)  );
+
+cdf1 = @(t)( 0.5*( 1 + tanh( 0.5*(t-a) ) ) );
+cdf2 = @(t)( 0.25*(t-a) + 0.5 );
+cdf3 = @(t)( (1-p)*(1- exp( 0.25*(h-t)/(1-p) ) ) + p );
+cdf = @(t)( cdf1(t).*(t<a) + cdf2(t).*(t>=a).*(t<h) + cdf3(t).*(t>=h)  );
+
+invcdf1 = @(u)( a + 2*atanh( eps + 2*u - 1 ) );
+invcdf2 = @(u)( a + 4*u - 2 );
+invcdf3 = @(u)( h - 4*(1-p)*log( (eps + 1 - u)/(1-p) ) );
+
+invcdf = @(u)( -35.1574*(u==0) + invcdf1(u).*(u>0).*(u < 0.5) + invcdf2(u).*(u>=0.5).*(u<p) + invcdf3(u).*(u >= p).*(u < 1) +  35.1574*(u==1));
+
+result.pdf = pdf;
+result.cdf = cdf;
+result.invcdf = invcdf;
+result.u = invcdf(rand(n,1));
+end
