@@ -1,0 +1,139 @@
+clear; clc; close all;
+
+numsim = 1000;
+ns = 10000;
+num_t_grid = 50000;
+mincv = 0.1;
+maxcv = 1;
+numcv = 40;
+beta0 = [-1; 1; 1];
+options.Maxiter = 100000;
+r = 1;
+
+p = 0.8;
+hs = 0.5;
+a = -5;
+
+result_asym_unbdd = rand_asym2(ns, p, hs);
+result_asym_bdd = rand_asym1(ns, p, hs, a);
+
+t1 = linspace(-4, 4, num_t_grid)';
+f1 = result_asym_unbdd.pdf(t1);
+t2 = linspace(a-0.5,result_asym_bdd.b+0.5, num_t_grid)';
+g2 = result_asym_bdd.pdf(t2);
+
+figure(3);
+plot((-hs)*ones(100,1), linspace(-0.1, 0.25+0.1, 100)', '-k', 'linewidth',1); hold on
+plot(zeros(100,1), linspace(-0.1, 0.25+0.1, 100)', '-k', 'linewidth',1);
+plot(hs*ones(100,1), linspace(-0.1, 0.25+0.1, 100)', '-k', 'linewidth',1);
+plot(t1, zeros(num_t_grid,1), ':k', 'linewidth',2);
+plot(t1, 0.25*ones(num_t_grid,1), ':k', 'linewidth',2);
+plot(t1, f1,'-r', 'linewidth',3); hold off
+ylabel("f_{u}(t)", 'fontsize',20);
+axis([min(t1) max(t1) 0 0.25 + 0.01]);
+text( -hs, 0.04, "\leftarrow{h_0}\rightarrow", 'fontsize', 15)
+text( 0, 0.04, "\leftarrow{h_0}\rightarrow", 'fontsize', 15)
+box on; grid on;
+
+figure(4);
+plot((-hs)*ones(100,1), linspace(-0.1, 0.35, 100)', '-k', 'linewidth',1); hold on
+plot(zeros(100,1), linspace(-0.1, 0.35, 100)', '-k', 'linewidth',1);
+plot(hs*ones(100,1), linspace(-0.1, 0.35, 100)', '-k', 'linewidth',1);
+plot(t2, zeros(num_t_grid,1), ':k', 'linewidth',2);
+plot(t2, result_asym_bdd.pdf(0)*ones(num_t_grid,1), ':k', 'linewidth',2);
+plot(t2, g2,'-r', 'linewidth',3); hold off
+ylabel("g_{u}(t)", 'fontsize',20);
+axis([min(t2) max(t2) 0 result_asym_bdd.pdf(0)+0.01]);
+text( -hs+0.06, 0.04, "\leftarrow{h_0}\rightarrow", 'fontsize', 18)
+text( 0 + 0.06, 0.04, "\leftarrow{h_0}\rightarrow", 'fontsize', 18)
+box on; grid on;
+
+
+t3 = linspace(-4, 8, num_t_grid)';
+f3 = result_asym_unbdd.pdf(t3 - 4);
+tgrid = unique([t1;t3]); 
+figure(5);
+plot(t3, f3, '-r', 'linewidth', 2); hold on
+plot(t1, f1, '-b', 'linewidth', 2); 
+plot((-hs)*ones(100,1), linspace(0, 0.25, 100)', ':k', 'linewidth',1.5);
+plot(zeros(100,1), linspace(0, 0.25, 100)', '-k', 'linewidth',2);
+plot(hs*ones(100,1), linspace(0, 0.25, 100)', ':k', 'linewidth',1.5);
+plot((4-hs)*ones(100,1), linspace(0, 0.25, 100)', ':k', 'linewidth',1.5);
+plot(4*ones(100,1), linspace(0, 0.25, 100)', '-k', 'linewidth',2);
+plot((4+hs)*ones(100,1), linspace(0, 0.25, 100)', ':k', 'linewidth',1.5);
+plot(tgrid, 0.25*ones(size(tgrid)), ':k', 'linewidth',1.5);
+plot(tgrid, zeros(size(tgrid)), '-k', 'linewidth',1);
+plot((-hs-0.2)*ones(100,1), linspace(0, 0.25, 100)', '--r', 'linewidth',1.5);
+plot((hs+0.2)*ones(100,1), linspace(0, 0.25, 100)', '--r', 'linewidth',1.5);
+plot(t1, f1, '-b', 'linewidth', 2);
+plot(t3, f3, '-r', 'linewidth', 2); hold off
+xlabel("t", 'fontsize',15);
+ylabel("Probability Density", 'fontsize',20);
+axis([min(tgrid) max(tgrid) -0.1 0.26]);
+
+text( -0.05, -0.01,"0",'fontsize', 15);
+text( 4-0.3, -0.01,"x'(\beta_{0} - \beta)",'fontsize', 15);
+text( -hs, 0.15, "\leftarrow{h_0}\rightarrow", 'fontsize', 12)
+text( 0, 0.15, "\leftarrow{h_0}\rightarrow", 'fontsize', 15)
+text( 4-hs, 0.15, "\leftarrow{h_0}\rightarrow", 'fontsize', 12)
+text( 4, 0.15, "\leftarrow{h_0}\rightarrow", 'fontsize', 12)
+text( -hs-0.7, -0.01,"-min\{x'\beta, h\}",'fontsize', 15);
+text( hs+0.07, -0.01,"min\{x'\beta, h\}",'fontsize', 15);
+
+set(gca,'XTick',[], 'YTick', [])
+box off; grid off;
+legend("f_{e}", "f_{u}", 'fontsize', 20)
+
+%%
+function result = rand_asym1(n, p, h, a)
+% Piece-wise Linear pdf, support = [a, b]
+c = 2*p/abs(a);
+pdf1 = @(t)( c*(a - t)/a );
+pdf2 = @(t)( c*(a + t)/a );
+b = h + (2*a/(c*(h+a)))*(1 - p - 0.5*h*(pdf1(0) + pdf2(h)));
+pdf3 = @(t)( ( (c*(h + a))/(a*(h - b)) )*(t-b) );
+pdf = @(t)( pdf3(t).*(t<=b).*(t>=h) + pdf2(t).*(t<h).*(t>0) + pdf1(t).*(t<=0).*(t>=a)  );
+
+cdf1 = @(t)( p + c*t - 0.5*(c/a)*t.^2 );
+cdf2 = @(t)( p + c*t + 0.5*(c/a)*t.^2 );
+cdf3 = @(t)( 1 + 0.5*pdf3(t).*(t-b)  );
+cdf = @(t)( 1.*(t>=b) + cdf3(t).*(t<b).*(t>=h) + cdf2(t).*(t<h).*(t>0) + cdf1(t).*(t<=0).*(t>=a)  );
+
+invcdf1 = @(u)( a + sqrt( (a/c)*(a*c + 2*(p - u)) ) );
+invcdf2 = @(u)( -a - sqrt( (a/c)*(a*c + 2*(u - p)) ) );
+invcdf3 = @(u)( b - sqrt( (2*a*(h - b)/(c*(h + a)))*( u -1)  )  );
+invcdf = @(u)( a*(u == 0) + b*(u == 1) + invcdf1(u).*(u>0).*(u<p) + invcdf2(u).*(u>=p).*(u < cdf2(h)) + invcdf3(u).*(u<1).*(u >= cdf3(h)) );
+
+result.pdf = pdf;
+result.cdf = cdf;
+result.invcdf = invcdf;
+result.u = invcdf(rand(n,1));
+result.b = b;
+end
+
+function result = rand_asym2(n,p,h)
+a = h + 2 - 4*p;
+b = 0.25/(1-p);
+c = 0.25*exp(0.25*h/(1-p));
+
+pdf1 = @(t)( exp( a  - t )./(( 1 + exp( a  - t ) ).^2) ); % Logistic
+pdf2 = @(t)( 1/4 ); % Uniform
+pdf3 = @(t)( 0.25*exp( 0.25*(h - t)/(1-p) ) ); % Exponential
+pdf = @(t)( pdf1(t).*(t<a) + pdf2(t).*(t>=a).*(t<h) + pdf3(t).*(t>=h)  );
+
+cdf1 = @(t)( 0.5*( 1 + tanh( 0.5*(t-a) ) ) );
+cdf2 = @(t)( 0.25*(t-a) + 0.5 );
+cdf3 = @(t)( (1-p)*(1- exp( 0.25*(h-t)/(1-p) ) ) + p );
+cdf = @(t)( cdf1(t).*(t<a) + cdf2(t).*(t>=a).*(t<h) + cdf3(t).*(t>=h)  );
+
+invcdf1 = @(u)( a + 2*atanh( eps + 2*u - 1 ) );
+invcdf2 = @(u)( a + 4*u - 2 );
+invcdf3 = @(u)( h - 4*(1-p)*log( (eps + 1 - u)/(1-p) ) );
+
+invcdf = @(u)( -35.1574*(u==0) + invcdf1(u).*(u>0).*(u < 0.5) + invcdf2(u).*(u>=0.5).*(u<p) + invcdf3(u).*(u >= p).*(u < 1) +  35.1574*(u==1));
+
+result.pdf = pdf;
+result.cdf = cdf;
+result.invcdf = invcdf;
+result.u = invcdf(rand(n,1));
+end
