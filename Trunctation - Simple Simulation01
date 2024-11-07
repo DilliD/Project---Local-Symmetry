@@ -74,10 +74,8 @@ for simiter = 1:numsim
 
 end
 
-% save local_sym_sim_result03.mat;
-
+% save local_sym_sim_result01.mat;
 %%
-clear; clc; close all; load local_sym_sim_result01.mat;
 bhat_powell1(:,convg1~=1) = [];
 bhat_yang1(:,convg1~=1) = [];
 
